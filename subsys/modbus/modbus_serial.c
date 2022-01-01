@@ -393,7 +393,7 @@ static void cb_handler_tx(struct modbus_context *ctx)
 				   cfg->uart_buf_ctr);
 		cfg->uart_buf_ctr -= n;
 		cfg->uart_buf_ptr += n;
-	} else {
+	} else if (uart_irq_tx_complete(cfg->dev) != 0) {
 		/* Disable transmission */
 		cfg->uart_buf_ptr = &cfg->uart_buf[0];
 		modbus_serial_tx_off(ctx);
@@ -413,15 +413,14 @@ static void uart_cb_handler(const struct device *dev, void *app_data)
 
 	cfg = ctx->cfg;
 
-	while (uart_irq_update(cfg->dev) && uart_irq_is_pending(cfg->dev)) {
+	// Do the Tx First so we are waiting for a response 
+	if (uart_irq_tx_ready(cfg->dev)) {
+		cb_handler_tx(ctx);
+	}
 
-		if (uart_irq_rx_ready(cfg->dev)) {
-			cb_handler_rx(ctx);
-		}
-
-		if (uart_irq_tx_ready(cfg->dev)) {
-			cb_handler_tx(ctx);
-		}
+	// wait for the reply
+	while (uart_irq_update(cfg->dev) && uart_irq_rx_ready(cfg->dev)) {
+		cb_handler_rx(ctx);
 	}
 }
 
